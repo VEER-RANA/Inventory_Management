@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
     const lowStockOnly =
       searchParams.get("lowStockOnly") === "true" ||
       searchParams.get("lowStock") === "true";
-    const isActive = searchParams.get("isActive") !== "false";
     const sortBy = (searchParams.get("sortBy") || "name") as
       | "name"
       | "price"
@@ -56,10 +55,6 @@ export async function GET(request: NextRequest) {
 
     if (lowStockOnly) {
       filtered = filtered.filter((p) => p.quantity <= p.minStockLevel);
-    }
-
-    if (isActive) {
-      filtered = filtered.filter((p) => p.isActive);
     }
 
     // Sort
@@ -183,10 +178,8 @@ export async function POST(request: NextRequest) {
       costPrice: body.costPrice,
       quantity: body.quantity,
       minStockLevel: body.minStockLevel,
-      maxStockLevel: body.maxStockLevel || body.quantity * 2,
       unit: body.unit || "piece",
       supplier: body.supplier || "",
-      isActive: body.isActive !== false,
     });
 
     return NextResponse.json(

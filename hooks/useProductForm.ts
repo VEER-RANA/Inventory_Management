@@ -1,182 +1,151 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { useSelector } from "react-redux";
-import type { RootState } from "@/store";
+import { useCallback, useMemo, useState } from "react";
+import { Product, ProductCategory } from "@/types/inventory";
 import { useAppDispatch } from "@/hooks/useRedux";
 import { createProduct, editProduct } from "@/store/productSlice";
-import { Product, ProductCategory } from "@/types/inventory";
 
-/**
- * Product Form State
- */
-export interface ProductFormData {
+export interface ProductFormValues {
   sku: string;
   name: string;
-  description: string;
   category: ProductCategory;
+  description: string;
   price: number;
   costPrice: number;
   quantity: number;
   minStockLevel: number;
-  maxStockLevel: number;
   unit: string;
   supplier: string;
-  isActive: boolean;
+  imageUrl: string;
 }
 
-/**
- * Form Errors
- */
-export interface FormErrors {
-  [key: string]: string | undefined;
+export interface ProductFormErrors {
+  sku?: string;
+  name?: string;
+  price?: string;
+  costPrice?: string;
+  quantity?: string;
+  minStockLevel?: string;
+  submit?: string;
 }
 
-/**
- * Hook: useProductForm
- * Manages product form state with validation
- * Handles both create and edit operations
- */
-export function useProductForm(initialProduct?: Product) {
+const SKU_PATTERN = /^[A-Z]+-\d+$/;
+
+const getInitialValues = (initialValues?: Partial<Product>): ProductFormValues => ({
+  sku: initialValues?.sku ?? "",
+  name: initialValues?.name ?? "",
+  category: initialValues?.category ?? "other",
+  description: initialValues?.description ?? "",
+  price: initialValues?.price ?? 0,
+  costPrice: initialValues?.costPrice ?? 0,
+  quantity: initialValues?.quantity ?? 0,
+  minStockLevel: initialValues?.minStockLevel ?? 0,
+  unit: initialValues?.unit ?? "pcs",
+  supplier: initialValues?.supplier ?? "",
+  imageUrl: initialValues?.imageUrl ?? "",
+});
+
+export function useProductForm(initialValues?: Partial<Product>) {
   const dispatch = useAppDispatch();
-  const status = useSelector((state: RootState) => state.products.status);
 
-  const [formData, setFormData] = useState<ProductFormData>({
-    sku: initialProduct?.sku || "",
-    name: initialProduct?.name || "",
-    description: initialProduct?.description || "",
-    category: initialProduct?.category || "other",
-    price: initialProduct?.price || 0,
-    costPrice: initialProduct?.costPrice || 0,
-    quantity: initialProduct?.quantity || 0,
-    minStockLevel: initialProduct?.minStockLevel || 0,
-    maxStockLevel: initialProduct?.maxStockLevel || 0,
-    unit: initialProduct?.unit || "piece",
-    supplier: initialProduct?.supplier || "",
-    isActive: initialProduct?.isActive ?? true,
-  });
+  const initial = useMemo(() => getInitialValues(initialValues), [initialValues]);
+  const [values, setValues] = useState<ProductFormValues>(initial);
+  const [errors, setErrors] = useState<ProductFormErrors>({});
 
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const validate = useCallback((nextValues: ProductFormValues): ProductFormErrors => {
+    const nextErrors: ProductFormErrors = {};
 
-  /**
-   * Validate form data
-   */
-  const validateForm = useCallback((): boolean => {
-    const newErrors: FormErrors = {};
-
-    if (!formData.sku.trim()) {
-      newErrors.sku = "SKU is required";
+    if (!nextValues.name.trim() || nextValues.name.trim().length < 2) {
+      nextErrors.name = "Name is required and must be at least 2 characters";
     }
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Product name is required";
+    if (!nextValues.sku.trim()) {
+      nextErrors.sku = "SKU is required";
+    } else if (!SKU_PATTERN.test(nextValues.sku.trim())) {
+      nextErrors.sku = "SKU must match format like ELEC-001";
     }
 
-    if (formData.price <= 0) {
-      newErrors.price = "Price must be greater than 0";
-    }
-    if (formData.costPrice <= 0) {
-      newErrors.costPrice = "Cost price must be greater than 0";
+    if (nextValues.price <= 0) {
+      nextErrors.price = "Price must be a positive number";
     }
 
-    if (formData.quantity < 0) {
-      newErrors.quantity = "Quantity cannot be negative";
+    if (nextValues.costPrice <= 0) {
+      nextErrors.costPrice = "Cost price must be a positive number";
     }
 
-    if (formData.minStockLevel < 0) {
-      newErrors.minStockLevel = "Minimum stock level cannot be negative";
+    if (!Number.isInteger(nextValues.quantity) || nextValues.quantity < 0) {
+      nextErrors.quantity = "Quantity must be a non-negative integer";
     }
 
-    if (formData.maxStockLevel < formData.minStockLevel) {
-      newErrors.maxStockLevel =
-        "Maximum stock level must be >= minimum stock level";
+    if (!Number.isInteger(nextValues.minStockLevel) || nextValues.minStockLevel < 0) {
+      nextErrors.minStockLevel = "Min stock level must be a non-negative integer";
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [formData]);
+    return nextErrors;
+  }, []);
 
-  /**
-   * Update form field
-   */
-  const updateField = useCallback(
-    (field: keyof ProductFormData, value: unknown) => {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-      // Clear error for this field
-      setErrors((prev) => ({
-        ...prev,
-        [field]: undefined,
-      }));
+  const handleChange = useCallback(
+    <K extends keyof ProductFormValues>(field: K, value: ProductFormValues[K]) => {
+      setValues((prev) => ({ ...prev, [field]: value }));
+      setErrors((prev) => ({ ...prev, [field]: undefined, submit: undefined }));
     },
     [],
   );
 
-  /**
-   * Submit form (create or update)
-   */
-  const submitForm = useCallback(async (): Promise<boolean> => {
-    if (!validateForm()) {
+  const handleSubmit = useCallback(async (): Promise<boolean> => {
+    const nextErrors = validate(values);
+    setErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
       return false;
     }
 
-    setIsSubmitting(true);
+    const payload = {
+      sku: values.sku.trim(),
+      name: values.name.trim(),
+      category: values.category,
+      description: values.description.trim(),
+      price: values.price,
+      costPrice: values.costPrice,
+      quantity: values.quantity,
+      minStockLevel: values.minStockLevel,
+      unit: values.unit.trim() || "pcs",
+      supplier: values.supplier.trim() || undefined,
+      imageUrl: values.imageUrl.trim() || undefined,
+    };
+
     try {
-      if (initialProduct) {
-        // Update existing product
-        await dispatch(
-          editProduct({
-            id: initialProduct.id,
-            data: formData,
-          }),
-        );
-        return true;
+      if (initialValues?.id) {
+        await dispatch(editProduct({ id: initialValues.id, data: payload })).unwrap();
       } else {
-        // Create new product
-        await dispatch(createProduct(formData));
-        return true;
+        await dispatch(createProduct(payload)).unwrap();
       }
-    } catch (error) {
-      console.error("Form submission error:", error);
+      return true;
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        submit: err instanceof Error ? err.message : "Failed to save product",
+      }));
       return false;
-    } finally {
-      setIsSubmitting(false);
     }
-  }, [dispatch, validateForm, initialProduct, formData]);
+  }, [dispatch, initialValues?.id, validate, values]);
 
-  /**
-   * Reset form to initial state
-   */
-  const resetForm = useCallback(() => {
-    setFormData({
-      sku: initialProduct?.sku || "",
-      name: initialProduct?.name || "",
-      description: initialProduct?.description || "",
-      category: initialProduct?.category || "other",
-      price: initialProduct?.price || 0,
-      costPrice: initialProduct?.costPrice || 0,
-      quantity: initialProduct?.quantity || 0,
-      minStockLevel: initialProduct?.minStockLevel || 0,
-      maxStockLevel: initialProduct?.maxStockLevel || 0,
-      unit: initialProduct?.unit || "piece",
-      supplier: initialProduct?.supplier || "",
-      isActive: initialProduct?.isActive ?? true,
-    });
+  const reset = useCallback(() => {
+    setValues(initial);
     setErrors({});
-  }, [initialProduct]);
+  }, [initial]);
 
-  const isLoading = useMemo(() => status === "loading", [status]);
+  const isDirty = useMemo(
+    () => JSON.stringify(values) !== JSON.stringify(initial),
+    [initial, values],
+  );
 
   return {
-    formData,
+    values,
+    handleChange,
     errors,
-    isSubmitting: isSubmitting || isLoading,
-    updateField,
-    submitForm,
-    resetForm,
-    validateForm,
+    handleSubmit,
+    reset,
+    isDirty,
   };
 }

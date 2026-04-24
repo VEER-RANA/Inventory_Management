@@ -2,11 +2,9 @@ import {
   createSlice,
   createAsyncThunk,
   PayloadAction,
-  type SerializedError,
 } from "@reduxjs/toolkit";
 import { StockMovement, StockMovementType } from "@/types/inventory";
 import { updateProduct } from "./productSlice";
-import { deleteProduct } from "./productSlice";
 
 /**
  * API Response types
@@ -37,7 +35,7 @@ export interface RecordMovementPayload {
 interface MovementSliceState {
   movements: StockMovement[];
   status: "idle" | "loading" | "succeeded" | "failed";
-  error: SerializedError | null;
+  error: string | null;
 }
 
 /**
@@ -152,13 +150,6 @@ const movementSlice = createSlice({
         (m) => m.productId !== action.payload,
       );
     },
-
-    /**
-     * Clear all movements
-     */
-    clearAllMovements: (state) => {
-      state.movements = [];
-    },
   },
 
   extraReducers: (builder) => {
@@ -177,10 +168,7 @@ const movementSlice = createSlice({
       })
       .addCase(fetchMovements.rejected, (state, action) => {
         state.status = "failed";
-        state.error = action.payload || {
-          name: "Error",
-          message: "Failed to fetch movements",
-        };
+        state.error = action.payload?.message || "Failed to fetch movements";
       });
 
     /**
@@ -199,20 +187,8 @@ const movementSlice = createSlice({
       })
       .addCase(recordMovement.rejected, (state, action) => {
         state.status = "failed";
-        state.error = action.payload || {
-          name: "Error",
-          message: "Failed to record movement",
-        };
+        state.error = action.payload?.message || "Failed to record movement";
       });
-
-    /**
-     * Cross-slice dependency: When product is deleted, clear its movements
-     */
-    builder.addCase(deleteProduct.fulfilled, (state, action) => {
-      state.movements = state.movements.filter(
-        (m) => m.productId !== action.payload,
-      );
-    });
   },
 });
 
@@ -220,7 +196,6 @@ export const {
   setMovements,
   addMovement,
   clearMovementsForProduct,
-  clearAllMovements,
 } = movementSlice.actions;
 
 export default movementSlice.reducer;

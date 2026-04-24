@@ -1,184 +1,138 @@
-import { InventoryStats, Product, StockMovement } from "@/types/inventory";
+import { headers } from "next/headers";
+import { Product, StockMovement, InventoryStats } from "@/types/inventory";
+import type { ProductCategory } from "@/types/inventory";
 import { StatsCard } from "@/components/StatsCard";
 import { CategoryDistributionChart } from "@/components/CategoryDistributionChart";
 import { TopValueChart } from "@/components/TopValueChart";
 import { LowStockAlert } from "@/components/LowStockAlert";
-import { PaginatedMovementList } from "@/components/PaginatedMovementList";
-import { cn } from "@/lib/utils";
-import { headers } from "next/headers";
+import { MovementHistoryRow } from "@/components/MovementHistoryRow";
+
+import { Package, CircleDollarSign, AlertTriangle, OctagonAlert } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-/**
- * Dashboard Page (Server Component)
- * Fetches and displays inventory statistics and charts
- * Server-side rendering for optimal performance
- */
 export default async function DashboardPage() {
   let products: Product[] = [];
-  let movements: StockMovement[] = [];
   let stats: InventoryStats | null = null;
-  let error: string | null = null;
+  let movements: StockMovement[] = [];
+
+  const hdrs = await headers();
+  const host = hdrs.get("host") ?? "localhost:3000";
+  const proto = hdrs.get("x-forwarded-proto") ?? (process.env.NODE_ENV === "development" ? "http" : "https");
+  const baseUrl = `${proto}://${host}`;
 
   try {
-    const hdrs = await headers();
-    const host = hdrs.get("host");
-    const proto = process.env.NODE_ENV === "development" ? "http" : "https";
-    const baseUrl = host ? `${proto}://${host}` : "http://localhost:3000";
-
-    // Fetch products and stats in parallel
     const [productsRes, statsRes, movementsRes] = await Promise.all([
       fetch(`${baseUrl}/api/products`, { cache: "no-store" }),
       fetch(`${baseUrl}/api/movements/stats`, { cache: "no-store" }),
-      fetch(`${baseUrl}/api/movements`, { cache: "no-store" }),
+      fetch(`${baseUrl}/api/movements?limit=5`, { cache: "no-store" }),
     ]);
 
     if (productsRes.ok) {
-      const data = await productsRes.json();
-      products = data.data || [];
+      const payload = (await productsRes.json()) as { data?: Product[] };
+      products = payload.data ?? [];
     }
 
     if (statsRes.ok) {
-      const data = await statsRes.json();
-      stats = data.data;
+      const payload = (await statsRes.json()) as { data?: InventoryStats };
+      stats = payload.data ?? null;
     }
 
     if (movementsRes.ok) {
-      const data = await movementsRes.json();
-      movements = (data.data || []).sort(
-        (a: StockMovement, b: StockMovement) =>
-          new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
-      );
+      const payload = (await movementsRes.json()) as { data?: StockMovement[] };
+      movements = payload.data ?? [];
     }
-  } catch (err) {
-    error =
-      err instanceof Error ? err.message : "Failed to fetch dashboard data";
+  } catch {
+    // Keep resilient dashboard rendering.
   }
 
-  // Calculate stats from products if API stats unavailable
-  const displayStats = stats || {
+  // Compute stats from fetched data if stats endpoint failed
+  const byCategory: Record<ProductCategory, number> = {
+    electronics: 0,
+    clothing: 0,
+    food: 0,
+    furniture: 0,
+    tools: 0,
+    stationery: 0,
+    other: 0,
+  };
+  for (const p of products) {
+    byCategory[p.category] += 1;
+  }
+
+  const computedStats: InventoryStats = stats ?? {
     totalProducts: products.length,
     totalValue: products.reduce((sum, p) => sum + p.price * p.quantity, 0),
-    lowStockCount: products.filter(
-      (p) => p.quantity > 0 && p.quantity <= p.minStockLevel,
-    ).length,
+    lowStockCount: products.filter((p) => p.quantity <= p.minStockLevel).length,
     outOfStockCount: products.filter((p) => p.quantity === 0).length,
-    byCategory: {
-      electronics: 0,
-      clothing: 0,
-      food: 0,
-      furniture: 0,
-      tools: 0,
-      stationery: 0,
-      other: 0,
-    },
+    byCategory,
     topByValue: [...products]
       .sort((a, b) => b.price * b.quantity - a.price * a.quantity)
       .slice(0, 5),
   };
 
-  const lowStockCount = displayStats.outOfStockCount + displayStats.lowStockCount;
+  const lowStockProducts = products
+    .filter((p) => p.quantity <= p.minStockLevel)
+    .slice(0, 5);
+
+  const productNameById = new Map(
+    products.map((p) => [p.id, p.name]),
+  );
 
   return (
     <div className="space-y-6">
-      {/* Error Message */}
-      {error && (
-        <div
-          className={cn(
-            "glass rounded-lg p-4",
-            "border border-red-500/30 bg-red-500/10",
-            "text-red-700 dark:text-red-300",
-            "text-sm",
-          )}
-        >
-          <p className="font-medium">⚠️ {error}</p>
-        </div>
-      )}
-
-      {/* Stats Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard icon={<Package className="h-6 w-6" />} label="Total Products" value={computedStats.totalProducts} />
         <StatsCard
-          icon="📦"
-          label="Total Products"
-          value={displayStats.totalProducts}
-          subtext={`${products.reduce((sum, p) => sum + p.quantity, 0)} total units`}
+          icon={<CircleDollarSign className="h-6 w-6" />}
+          label="Total Inventory Value"
+          value={`$${(computedStats.totalValue / 100).toFixed(2)}`}
         />
         <StatsCard
-          icon="💰"
-          label="Total Value"
-          value={`$${(displayStats.totalValue / 100).toFixed(2)}`}
-          subtext="Inventory worth"
+          icon={<AlertTriangle className="h-6 w-6" />}
+          label="Low Stock Items"
+          value={computedStats.lowStockCount}
+          variant={computedStats.lowStockCount > 0 ? "warning" : "success"}
         />
         <StatsCard
-          icon="⚠️"
-          label="Low Stock"
-          value={displayStats.lowStockCount}
-          variant={displayStats.lowStockCount > 0 ? "warning" : "success"}
-          subtext="Below minimum level"
-        />
-        <StatsCard
-          icon="🚨"
-          label="Out of Stock"
-          value={displayStats.outOfStockCount}
-          variant={displayStats.outOfStockCount > 0 ? "danger" : "success"}
-          subtext="Zero quantity items"
+          icon={<OctagonAlert className="h-6 w-6" />}
+          label="Out of Stock Items"
+          value={computedStats.outOfStockCount}
+          variant={computedStats.outOfStockCount > 0 ? "danger" : "success"}
         />
       </div>
 
-      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CategoryDistributionChart products={products} />
-        <TopValueChart products={products} />
+        <CategoryDistributionChart byCategory={computedStats.byCategory} />
+        <TopValueChart products={computedStats.topByValue} />
       </div>
 
-      {/* Low Stock Alerts */}
-      {lowStockCount > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">
-            ⚠️ Inventory Alerts
-          </h2>
-          <LowStockAlert variant="detailed" products={products} />
-        </div>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Low Stock Alerts</h2>
+        {lowStockProducts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No low stock alerts</p>
+        ) : (
+          lowStockProducts.map((product) => (
+            <LowStockAlert key={product.id} product={product} />
+          ))
+        )}
+      </section>
 
-      {/* Recent Movements */}
-      {movements.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-4">
-            📊 Recent Movements
-          </h2>
-          <PaginatedMovementList
-            movements={movements}
-            products={products}
-            pageSize={5}
-            emptyTitle="No Recent Movements"
-            emptyDescription="Record your first stock movement to see recent activity."
-          />
-        </div>
-      )}
-
-      {/* Empty State */}
-      {products.length === 0 && !error && (
-        <div
-          className={cn(
-            "glass rounded-lg p-12",
-            "border border-white/10",
-            "flex flex-col items-center justify-center gap-4",
-            "text-center",
-          )}
-        >
-          <div className="text-4xl">📦</div>
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">
-              No Products Yet
-            </h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              Add your first product to see inventory statistics
-            </p>
-          </div>
-        </div>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Recent Movements</h2>
+        {movements.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No movements yet</p>
+        ) : (
+          movements.slice(0, 5).map((movement) => (
+            <MovementHistoryRow
+              key={movement.id}
+              movement={movement}
+              productName={productNameById.get(movement.productId) ?? "Unknown Product"}
+            />
+          ))
+        )}
+      </section>
     </div>
   );
 }

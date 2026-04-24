@@ -4,7 +4,6 @@ import React, {
   createContext,
   useContext,
   useState,
-  useEffect,
   ReactNode,
 } from "react";
 
@@ -37,7 +36,6 @@ interface WarehouseContextType {
   setCurrency: (currency: CurrencyCode) => void;
   setLowStockThresholdOverride: (threshold: number | null) => void;
   formatPrice: (cents: number) => string;
-  isLoading: boolean;
 }
 
 /**
@@ -59,53 +57,33 @@ const DEFAULT_LOW_STOCK_THRESHOLD: number | null = null;
  * Provides warehouse configuration with localStorage persistence
  */
 export function WarehouseProvider({ children }: { children: ReactNode }) {
-  const [warehouseName, setWarehouseNameState] = useState<string>(
-    DEFAULT_WAREHOUSE_NAME,
-  );
-  const [currency, setCurrencyState] = useState<CurrencyCode>(DEFAULT_CURRENCY);
-  const [lowStockThresholdOverride, setLowStockThresholdOverrideState] =
-    useState<number | null>(DEFAULT_LOW_STOCK_THRESHOLD);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [warehouseName, setWarehouseNameState] = useState<string>(() => {
+    if (typeof window === "undefined") return DEFAULT_WAREHOUSE_NAME;
+    const storedWarehouse = localStorage.getItem("warehouse_name")?.trim();
+    return storedWarehouse || DEFAULT_WAREHOUSE_NAME;
+  });
 
-  /**
-   * Initialize from localStorage on mount
-   */
-  useEffect(() => {
-    try {
-      const storedWarehouse = localStorage.getItem("warehouse_name");
-      const storedCurrency = localStorage.getItem(
-        "warehouse_currency",
-      ) as CurrencyCode | null;
+  const [currency, setCurrencyState] = useState<CurrencyCode>(() => {
+    if (typeof window === "undefined") return DEFAULT_CURRENCY;
+    const storedCurrency = localStorage.getItem("warehouse_currency");
+    if (storedCurrency && storedCurrency in CURRENCY_CONFIG) {
+      return storedCurrency as CurrencyCode;
+    }
+    return DEFAULT_CURRENCY;
+  });
+
+  const [lowStockThresholdOverride, setLowStockThresholdOverrideState] =
+    useState<number | null>(() => {
+      if (typeof window === "undefined") return DEFAULT_LOW_STOCK_THRESHOLD;
       const storedThreshold = localStorage.getItem("low_stock_threshold");
 
-      if (storedWarehouse) {
-        setWarehouseNameState(storedWarehouse);
+      if (storedThreshold === "null" || storedThreshold === null) {
+        return null;
       }
 
-      if (
-        storedCurrency &&
-        Object.keys(CURRENCY_CONFIG).includes(storedCurrency)
-      ) {
-        setCurrencyState(storedCurrency);
-      }
-
-      if (storedThreshold === "null") {
-        setLowStockThresholdOverrideState(null);
-      } else if (storedThreshold) {
-        const threshold = parseInt(storedThreshold, 10);
-        if (!isNaN(threshold) && threshold >= 0) {
-          setLowStockThresholdOverrideState(threshold);
-        }
-      }
-    } catch (error) {
-      console.warn(
-        "Failed to load warehouse configuration from localStorage:",
-        error,
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      const threshold = parseInt(storedThreshold, 10);
+      return Number.isNaN(threshold) || threshold < 0 ? null : threshold;
+    });
 
   /**
    * Update warehouse name and persist to localStorage
@@ -171,7 +149,6 @@ export function WarehouseProvider({ children }: { children: ReactNode }) {
     setCurrency: handleSetCurrency,
     setLowStockThresholdOverride: handleSetLowStockThresholdOverride,
     formatPrice,
-    isLoading,
   };
 
   return (

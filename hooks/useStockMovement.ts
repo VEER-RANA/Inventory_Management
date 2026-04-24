@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { useSelector } from "react-redux";
-import type { RootState } from "@/store";
 import { recordMovement } from "@/store/movementSlice";
-import { useAppDispatch } from "@/hooks/useRedux";
+import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { StockMovementType } from "@/types/inventory";
 import { fetchProducts } from "@/store/productSlice";
 
@@ -12,30 +10,30 @@ import { fetchProducts } from "@/store/productSlice";
  * Stock Movement Form Data
  */
 export function useStockMovement(productId: string) {
-  console.log("Hello", { productId });
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    dispatch(fetchProducts()); // Ensure products are loaded
+    dispatch(fetchProducts(undefined));
   }, [dispatch]);
 
-  const products = useSelector((state: RootState) => state.products.products);
-  const movementStatus = useSelector(
-    (state: RootState) => state.movements.status,
-  );
-  console.log("Products in state:", { products });
+  const products = useAppSelector((state) => state.products.products);
+  const movementStatus = useAppSelector((state) => state.movements.status);
+
   const product = useMemo(
     () => products.find((p) => p.id === productId),
     [products, productId],
   );
-  console.log("Product found:", { product });
 
-  const [movementType, setMovementType] =
+  const [movementTypeState, setMovementTypeState] =
     useState<StockMovementType>("restock");
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const setMovementType = useCallback((type: StockMovementType) => {
+    setMovementTypeState(type);
+  }, []);
 
   /**
    * Calculate preview quantity based on form data
@@ -44,22 +42,22 @@ export function useStockMovement(productId: string) {
   const previewQuantity = useMemo((): number => {
     if (!product) return 0;
 
-    if (movementType === "sale" || movementType === "adjustment") {
+    if (movementTypeState === "sale" || movementTypeState === "adjustment") {
       return product.quantity - quantity;
     }
     return product.quantity + quantity;
-  }, [product, movementType, quantity]);
+  }, [product, movementTypeState, quantity]);
 
   const canSubmit = useMemo(() => {
     if (!product || quantity <= 0) return false;
     if (
-      (movementType === "sale" || movementType === "adjustment") &&
+      (movementTypeState === "sale" || movementTypeState === "adjustment") &&
       previewQuantity < 0
     ) {
       return false;
     }
     return true;
-  }, [product, quantity, movementType, previewQuantity]);
+  }, [product, quantity, movementTypeState, previewQuantity]);
 
   const submit = useCallback(async (): Promise<boolean> => {
     if (!product || !canSubmit) return false;
@@ -70,7 +68,7 @@ export function useStockMovement(productId: string) {
       const result = await dispatch(
         recordMovement({
           productId,
-          type: movementType,
+          type: movementTypeState,
           quantity,
           note: note || undefined,
         }),
@@ -90,7 +88,7 @@ export function useStockMovement(productId: string) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [dispatch, product, canSubmit, productId, movementType, quantity, note]);
+  }, [dispatch, product, canSubmit, productId, movementTypeState, quantity, note]);
 
   const isLoading = useMemo(
     () => movementStatus === "loading",
@@ -98,7 +96,7 @@ export function useStockMovement(productId: string) {
   );
 
   return {
-    movementType,
+    movementType: movementTypeState,
     setMovementType,
     quantity,
     setQuantity,

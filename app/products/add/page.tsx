@@ -10,9 +10,11 @@ import { cn } from "@/lib/utils";
 
 const CATEGORIES: ProductCategory[] = [
   "electronics",
-  "furniture",
   "clothing",
   "food",
+  "furniture",
+  "tools",
+  "stationery",
   "other",
 ];
 
@@ -27,7 +29,6 @@ interface FormData {
   costPrice: string;
   quantity: string;
   minStockLevel: string;
-  maxStockLevel: string;
   unit: string;
   supplier: string;
 }
@@ -35,6 +36,8 @@ interface FormData {
 interface FormErrors {
   [key: string]: string;
 }
+
+import { PlusCircle } from "lucide-react";
 
 /**
  * Add Product Page
@@ -57,7 +60,6 @@ export default function AddProductPage() {
     costPrice: "",
     quantity: "",
     minStockLevel: "",
-    maxStockLevel: "",
     unit: "pieces",
     supplier: "",
   });
@@ -66,7 +68,7 @@ export default function AddProductPage() {
     const newErrors: FormErrors = {};
 
     if (!formData.sku.trim()) {
-      newErrors.sku = "SKU is required";
+      newErrors.sku = "SKU is required and unique";
     }
     if (!formData.name.trim()) {
       newErrors.name = "Product name is required";
@@ -83,12 +85,8 @@ export default function AddProductPage() {
     if (!formData.minStockLevel || parseInt(formData.minStockLevel) < 0) {
       newErrors.minStockLevel = "Min stock level must be 0 or greater";
     }
-    if (!formData.maxStockLevel || parseInt(formData.maxStockLevel) < 0) {
-      newErrors.maxStockLevel = "Max stock level must be 0 or greater";
-    }
-    if (parseInt(formData.maxStockLevel) < parseInt(formData.minStockLevel)) {
-      newErrors.maxStockLevel =
-        "Max stock level must be greater than or equal to min stock level";
+    if (!formData.supplier.trim()) {
+      newErrors.supplier = "Supplier is required";
     }
 
     setErrors(newErrors);
@@ -133,10 +131,8 @@ export default function AddProductPage() {
         costPrice: parseInt(formData.costPrice, 10),
         quantity: parseInt(formData.quantity),
         minStockLevel: parseInt(formData.minStockLevel),
-        maxStockLevel: parseInt(formData.maxStockLevel),
         unit: formData.unit,
         supplier: formData.supplier,
-        isActive: true,
       };
 
       const result = await dispatch(createProduct(productData)).unwrap();
@@ -150,7 +146,7 @@ export default function AddProductPage() {
     } catch (error) {
       setErrors({
         submit:
-          error instanceof Error ? error.message : "Failed to create product",
+          error instanceof Error ? error.message : "Product with same SKU already exists",
       });
     } finally {
       setIsSubmitting(false);
@@ -160,18 +156,23 @@ export default function AddProductPage() {
   return (
     <div className="max-w-2xl space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-foreground">Add Product</h1>
-        <p className="text-muted-foreground">
-          Create a new product in your inventory
-        </p>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center justify-center h-12 w-12 rounded-[1.5rem] bg-primary/20 text-primary">
+          <PlusCircle className="h-6 w-6" strokeWidth={2.5} />
+        </div>
+        <div className="flex flex-col">
+          <h1 className="text-3xl font-bold text-foreground">Add Product</h1>
+          <p className="text-muted-foreground">
+            Create a new product in your inventory
+          </p>
+        </div>
       </div>
 
       {/* Success Message */}
       {successMessage && (
         <div
           className={cn(
-            "glass rounded-lg p-4",
+            "glass rounded-[1.5rem] p-4",
             "border border-green-500/30 bg-green-500/10",
             "text-green-700 dark:text-green-300",
             "text-sm",
@@ -185,7 +186,7 @@ export default function AddProductPage() {
       {errors.submit && (
         <div
           className={cn(
-            "glass rounded-lg p-4",
+            "glass rounded-[1.5rem] p-4",
             "border border-red-500/30 bg-red-500/10",
             "text-red-700 dark:text-red-300",
             "text-sm",
@@ -197,7 +198,7 @@ export default function AddProductPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit}>
-        <div className="glass rounded-lg p-6 border border-white/10 space-y-6">
+        <div className="glass rounded-[1.5rem] p-8 border border-white/10 space-y-6">
           {/* SKU and Name Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -416,8 +417,8 @@ export default function AddProductPage() {
             </div>
           </div>
 
-          {/* Stock Levels Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Stock Level */}
+          <div>
             <div>
               <label
                 htmlFor="minStockLevel"
@@ -438,42 +439,12 @@ export default function AddProductPage() {
                   "text-foreground placeholder:text-muted-foreground",
                   "focus:outline-none focus:ring-2 focus:ring-primary",
                   errors.minStockLevel &&
-                    "border-red-500/50 focus:ring-red-500",
+                  "border-red-500/50 focus:ring-red-500",
                 )}
               />
               {errors.minStockLevel && (
                 <p className="text-xs text-red-500 mt-1">
                   {errors.minStockLevel}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="maxStockLevel"
-                className="block text-sm font-medium mb-2"
-              >
-                Max Stock Level *
-              </label>
-              <input
-                id="maxStockLevel"
-                name="maxStockLevel"
-                type="number"
-                value={formData.maxStockLevel}
-                onChange={handleChange}
-                placeholder="0"
-                className={cn(
-                  "w-full px-4 py-2 rounded-lg",
-                  "bg-white/5 border border-white/10",
-                  "text-foreground placeholder:text-muted-foreground",
-                  "focus:outline-none focus:ring-2 focus:ring-primary",
-                  errors.maxStockLevel &&
-                    "border-red-500/50 focus:ring-red-500",
-                )}
-              />
-              {errors.maxStockLevel && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.maxStockLevel}
                 </p>
               )}
             </div>
@@ -485,7 +456,7 @@ export default function AddProductPage() {
               htmlFor="supplier"
               className="block text-sm font-medium mb-2"
             >
-              Supplier
+              Supplier *
             </label>
             <input
               id="supplier"
@@ -499,8 +470,14 @@ export default function AddProductPage() {
                 "bg-white/5 border border-white/10",
                 "text-foreground placeholder:text-muted-foreground",
                 "focus:outline-none focus:ring-2 focus:ring-primary",
+                errors.supplier && "border-red-500/50 focus:ring-red-500",
               )}
             />
+            {errors.supplier && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.supplier}
+              </p>
+            )}
           </div>
 
           {/* Form Actions */}

@@ -2,7 +2,6 @@ import {
   createSlice,
   createAsyncThunk,
   PayloadAction,
-  type SerializedError,
 } from "@reduxjs/toolkit";
 import { Product, InventoryFilters } from "@/types/inventory";
 
@@ -27,12 +26,9 @@ interface ProductSliceState {
   filters: InventoryFilters;
   selectedProduct: Product | null;
   status: "idle" | "loading" | "succeeded" | "failed";
-  error: SerializedError | null;
+  error: string | null;
 }
 
-/**
- * Initial filters state
- */
 const initialFilters: InventoryFilters = {
   search: "",
   category: "all",
@@ -104,7 +100,14 @@ export const createProduct = createAsyncThunk<
     });
 
     if (!response.ok) {
-      return rejectWithValue({ message: "Failed to create product" });
+      let errorMessage = "Product with same SKU already exists";
+      try {
+        const errorData = await response.json();
+        if (errorData.error) errorMessage = errorData.error;
+      } catch (e) {
+        // Ignore JSON parse errors
+      }
+      return rejectWithValue({ message: errorMessage });
     }
 
     const json: ProductResponse = await response.json();
@@ -159,7 +162,7 @@ export const deleteProduct = createAsyncThunk<
   {
     rejectValue: { message: string };
   }
->("products/deleteProduct", async (id, { rejectWithValue }) => {
+>("products/deleteProduct", async (id, { rejectWithValue, dispatch }) => {
   try {
     const response = await fetch(`/api/products/${id}`, {
       method: "DELETE",
@@ -169,6 +172,8 @@ export const deleteProduct = createAsyncThunk<
       return rejectWithValue({ message: "Failed to delete product" });
     }
 
+    dispatch({ type: "movements/clearMovementsForProduct", payload: id });
+
     return id;
   } catch (error) {
     return rejectWithValue({
@@ -177,33 +182,22 @@ export const deleteProduct = createAsyncThunk<
   }
 });
 
-/**
- * Product Slice
- */
+
 const productSlice = createSlice({
   name: "products",
   initialState,
   reducers: {
-    /**
-     * Set all products (for hydration or manual updates)
-     */
+
     setProducts: (state, action: PayloadAction<Product[]>) => {
       state.products = action.payload;
       state.status = "succeeded";
       state.error = null;
     },
 
-    /**
-     * Add single product to state
-     */
     addProduct: (state, action: PayloadAction<Product>) => {
       state.products.push(action.payload);
     },
 
-    /**
-     * Update product in state
-     * Updates both the product in the array and selectedProduct if it's the same
-     */
     updateProduct: (state, action: PayloadAction<Product>) => {
       const index = state.products.findIndex((p) => p.id === action.payload.id);
       if (index !== -1) {
@@ -214,9 +208,6 @@ const productSlice = createSlice({
       }
     },
 
-    /**
-     * Remove product from state
-     */
     removeProduct: (state, action: PayloadAction<string>) => {
       state.products = state.products.filter((p) => p.id !== action.payload);
       if (state.selectedProduct?.id === action.payload) {
@@ -224,32 +215,22 @@ const productSlice = createSlice({
       }
     },
 
-    /**
-     * Set filters and trigger re-fetch if needed
-     */
     setFilters: (state, action: PayloadAction<Partial<InventoryFilters>>) => {
       state.filters = { ...state.filters, ...action.payload };
     },
 
-    /**
-     * Reset filters to initial state
-     */
     clearFilters: (state) => {
       state.filters = initialFilters;
     },
 
-    /**
-     * Set selected product for detail view
-     */
+
     setSelectedProduct: (state, action: PayloadAction<Product | null>) => {
       state.selectedProduct = action.payload;
     },
   },
 
   extraReducers: (builder) => {
-    /**
-     * Fetch Products
-     */
+
     builder
       .addCase(fetchProducts.pending, (state) => {
         state.status = "loading";
@@ -262,15 +243,9 @@ const productSlice = createSlice({
       })
       .addCase(fetchProducts.rejected, (state, action) => {
         state.status = "failed";
-        state.error = action.payload || {
-          name: "Error",
-          message: "Failed to fetch products",
-        };
+        state.error = action.payload?.message || "Failed to fetch products";
       });
 
-    /**
-     * Create Product
-     */
     builder
       .addCase(createProduct.pending, (state) => {
         state.status = "loading";
@@ -283,15 +258,9 @@ const productSlice = createSlice({
       })
       .addCase(createProduct.rejected, (state, action) => {
         state.status = "failed";
-        state.error = action.payload || {
-          name: "Error",
-          message: "Failed to create product",
-        };
+        state.error = action.payload?.message || "Failed to create product";
       });
 
-    /**
-     * Edit Product
-     */
     builder
       .addCase(editProduct.pending, (state) => {
         state.status = "loading";
@@ -312,15 +281,9 @@ const productSlice = createSlice({
       })
       .addCase(editProduct.rejected, (state, action) => {
         state.status = "failed";
-        state.error = action.payload || {
-          name: "Error",
-          message: "Failed to update product",
-        };
+        state.error = action.payload?.message || "Failed to update product";
       });
 
-    /**
-     * Delete Product
-     */
     builder
       .addCase(deleteProduct.pending, (state) => {
         state.status = "loading";
@@ -336,10 +299,7 @@ const productSlice = createSlice({
       })
       .addCase(deleteProduct.rejected, (state, action) => {
         state.status = "failed";
-        state.error = action.payload || {
-          name: "Error",
-          message: "Failed to delete product",
-        };
+        state.error = action.payload?.message || "Failed to delete product";
       });
   },
 });

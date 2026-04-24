@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,27 @@ export function ProductFilters() {
     );
   };
 
+  const [searchValue, setSearchValue] = useState(searchParams.get("search") ?? "");
+
+  // Debounce search URL update
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const currentSearch = searchParams.get("search") ?? "";
+      if (searchValue !== currentSearch) {
+        updateFilter("search", searchValue);
+      }
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchValue, searchParams]);
+
+  // Sync local search value if URL changes externally (e.g. Reset Filters)
+  useEffect(() => {
+    const currentSearch = searchParams.get("search") ?? "";
+    if (searchValue !== currentSearch) {
+      setSearchValue(currentSearch);
+    }
+  }, [searchParams.get("search")]);
+
   return (
     <div className="glass rounded-lg p-4 border border-white/10 space-y-4">
       <h3 className="font-semibold">Filters</h3>
@@ -41,8 +63,8 @@ export function ProductFilters() {
       {/* Search */}
       <Input
         placeholder="Search products..."
-        value={searchParams.get("search") ?? ""}
-        onChange={(e) => updateFilter("search", e.target.value)}
+        value={searchValue}
+        onChange={(e) => setSearchValue(e.target.value)}
       />
 
       {/* Category */}

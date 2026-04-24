@@ -6,6 +6,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import { Product, StockMovement, StockMovementType } from "@/types/inventory";
 
 interface DatabaseState {
@@ -57,12 +58,10 @@ function getSeedProducts(now: string): Product[] {
       costPrice: 99999,
       quantity: 15,
       minStockLevel: 5,
-      maxStockLevel: 30,
       unit: "pcs",
       supplier: "Tech Supplier Inc",
       createdAt: now,
       updatedAt: now,
-      isActive: true,
     },
     {
       id: "prod_2",
@@ -74,12 +73,10 @@ function getSeedProducts(now: string): Product[] {
       costPrice: 19999,
       quantity: 3,
       minStockLevel: 10,
-      maxStockLevel: 50,
       unit: "pcs",
       supplier: "Furniture Ltd",
       createdAt: now,
       updatedAt: now,
-      isActive: true,
     },
   ];
 }
@@ -164,7 +161,7 @@ export function createProduct(
   const now = new Date().toISOString();
   const product: Product = {
     ...data,
-    id: `prod_${db.counters.productId++}`,
+    id: randomUUID(),
     createdAt: now,
     updatedAt: now,
   };
@@ -279,7 +276,7 @@ export function createMovement(data: {
   db.products.set(product.id, updatedProduct);
 
   const movement: StockMovement = {
-    id: `mov_${db.counters.movementId++}`,
+    id: randomUUID(),
     productId: data.productId,
     type: data.type,
     quantity: data.quantity,

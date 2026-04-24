@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux";
 import { cn } from "@/lib/utils";
 import { fetchProducts } from "@/store/productSlice";
+import { useInventoryStats } from "@/hooks/useInventoryStats";
 
 interface AlertBadgeProps {
   className?: string;
@@ -18,6 +19,7 @@ export function AlertBadge({ className }: AlertBadgeProps) {
   const dispatch = useAppDispatch();
   const products = useAppSelector((state) => state.products.products);
   const productStatus = useAppSelector((state) => state.products.status);
+  const stats = useInventoryStats();
 
   useEffect(() => {
     if (productStatus === "idle" && products.length === 0) {
@@ -25,11 +27,10 @@ export function AlertBadge({ className }: AlertBadgeProps) {
     }
   }, [dispatch, productStatus, products.length]);
 
-  const alertCount = useMemo(() => {
-    return products.filter(
-      (product) => product.quantity === 0 || product.quantity <= product.minStockLevel,
-    ).length;
-  }, [products]);
+  const alertCount = useMemo(
+    () => Math.max(stats.lowStockCount, stats.outOfStockCount),
+    [stats.lowStockCount, stats.outOfStockCount],
+  );
 
   if (alertCount === 0) {
     return null;

@@ -1,8 +1,8 @@
 "use client";
 
 import { StockMovement } from "@/types/inventory";
-
 import { cn } from "@/lib/utils";
+import { TrendingUp, TrendingDown, RefreshCcw, PackageCheck } from "lucide-react";
 
 interface MovementHistoryRowProps {
   movement: StockMovement;
@@ -10,159 +10,64 @@ interface MovementHistoryRowProps {
   className?: string;
 }
 
-/**
- * Movement Type Icon and Color
- */
-function getMovementTypeInfo(type: StockMovement["type"]) {
-  const types = {
-    restock: {
-      icon: "📥",
-      label: "Restock",
-      color: "text-green-600 dark:text-green-400",
-      bg: "bg-green-500/10",
-    },
-    sale: {
-      icon: "📤",
-      label: "Sale",
-      color: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-500/10",
-    },
-    return: {
-      icon: "↩️",
-      label: "Return",
-      color: "text-purple-600 dark:text-purple-400",
-      bg: "bg-purple-500/10",
-    },
-    adjustment: {
-      icon: "🔧",
-      label: "Adjustment",
-      color: "text-orange-600 dark:text-orange-400",
-      bg: "bg-orange-500/10",
-    },
-  };
-  return types[type];
-}
+const TYPE_STYLE: Record<StockMovement["type"], string> = {
+  restock: "bg-green-500/20 text-green-700 dark:text-green-300",
+  sale: "bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  adjustment: "bg-orange-500/20 text-orange-700 dark:text-orange-300",
+  return: "bg-purple-500/20 text-purple-700 dark:text-purple-300",
+};
 
-/**
- * MovementHistoryRow Component
- * Displays individual stock movement record
- * Shows quantity changes and movement metadata
- * Formatted for readability in history tables/lists
- */
-export function MovementHistoryRow({
-  movement,
-  productName,
-  className,
-}: MovementHistoryRowProps) {
-  const typeInfo = getMovementTypeInfo(movement.type);
-  const date = new Date(movement.performedAt);
-  const isPositive = movement.newQuantity >= movement.previousQuantity;
+export function MovementHistoryRow({ movement, productName, className }: MovementHistoryRowProps) {
+  const isPositive = movement.type === "restock" || movement.type === "return";
+  const deltaSign = isPositive ? "+" : "-";
+  const deltaColor = isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400";
+  
+  const Icon = movement.type === "restock" ? PackageCheck :
+               movement.type === "sale" ? TrendingDown :
+               movement.type === "return" ? TrendingUp : RefreshCcw;
 
   return (
-    <div
-      className={cn(
-        "glass rounded-lg p-4 transition-all hover:bg-white/15 dark:hover:bg-black/30",
-        "border border-white/10",
-        className,
-      )}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-        {/* Type and Icon */}
-        <div className={cn("md:col-span-2 rounded p-3", typeInfo.bg)}>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{typeInfo.icon}</span>
-            <div className="flex-1 min-w-0">
-              <p
-                className={cn(
-                  "text-xs font-semibold uppercase tracking-wider",
-                  typeInfo.color,
-                )}
-              >
-                {typeInfo.label}
-              </p>
-            </div>
+    <div className={cn("glass rounded-[1.5rem] p-4 transition-all hover:bg-white/5 border border-white/10", className)}>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        
+        {/* Left Side: Icon & Product */}
+        <div className="flex items-center gap-3 w-full sm:w-1/3">
+          <div className={cn("flex items-center justify-center h-10 w-10 rounded-xl shrink-0", TYPE_STYLE[movement.type])}>
+            <Icon className="h-5 w-5" strokeWidth={2.5} />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="font-semibold text-foreground truncate">{productName}</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">{movement.type}</span>
           </div>
         </div>
 
-        {/* Product Info */}
-        <div className="md:col-span-3">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            Product
-          </p>
-          <p className="font-medium text-foreground truncate">{productName}</p>
-          <p className="text-xs text-muted-foreground">ID: {movement.id}</p>
-        </div>
-
-        {/* Quantity Change */}
-        <div className="md:col-span-2">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            Quantity Change
-          </p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm text-muted-foreground">
-              {movement.previousQuantity}
+        {/* Middle: Quantities */}
+        <div className="flex items-center gap-6 w-full sm:w-1/3 justify-between sm:justify-center">
+          <div className="flex flex-col items-center">
+            <span className="text-xs text-muted-foreground">Previous</span>
+            <span className="font-medium">{movement.previousQuantity}</span>
+          </div>
+          <div className="flex flex-col items-center bg-background/50 rounded-lg px-4 py-1 border border-white/5 shadow-sm">
+            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-0.5">Change</span>
+            <span className={cn("font-bold text-sm", deltaColor)}>
+              {deltaSign}{movement.quantity}
             </span>
-            <span className="text-muted-foreground">→</span>
-            <span
-              className={cn(
-                "font-bold text-lg",
-                isPositive
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400",
-              )}
-            >
-              {movement.newQuantity}
-            </span>
-            <span
-              className={cn(
-                "text-xs font-medium px-2 py-1 rounded",
-                isPositive
-                  ? "bg-green-500/20 text-green-700 dark:text-green-300"
-                  : "bg-red-500/20 text-red-700 dark:text-red-300",
-              )}
-            >
-              {isPositive ? "+" : ""}
-              {movement.quantity *
-                (movement.type === "sale" || movement.type === "adjustment"
-                  ? -1
-                  : 1)}
-            </span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-xs text-muted-foreground">New</span>
+            <span className="font-medium text-foreground">{movement.newQuantity}</span>
           </div>
         </div>
 
-        {/* Date and User */}
-        <div className="md:col-span-2">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            Date & User
-          </p>
-          <p className="text-sm font-medium text-foreground">
-            {date.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {date.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {movement.type.toUpperCase()}
-          </p>
+        {/* Right Side: Note & Date */}
+        <div className="flex flex-col items-end w-full sm:w-1/3 text-sm">
+          <span className="font-medium text-foreground text-right">{new Date(movement.performedAt).toLocaleDateString()}</span>
+          <span className="text-xs text-muted-foreground text-right">{new Date(movement.performedAt).toLocaleTimeString()}</span>
+          {movement.note && (
+            <span className="mt-1 text-xs text-muted-foreground italic truncate max-w-full">"{movement.note}"</span>
+          )}
         </div>
-
-        {/* Notes */}
-        {movement.note && (
-          <div className="md:col-span-3">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
-              Notes
-            </p>
-            <p className="text-sm text-foreground line-clamp-2">
-              {movement.note}
-            </p>
-          </div>
-        )}
+        
       </div>
     </div>
   );

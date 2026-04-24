@@ -136,10 +136,13 @@ export function StockMovementRecordForm({
           </div>
 
           {/* Movement Form */}
-          <StockMovementForm
-            productId={selectedProductId}
-            onSuccess={handleMovementSuccess}
-          />
+          {selectedProduct && (
+            <StockMovementForm
+              product={selectedProduct}
+              onSuccess={handleMovementSuccess}
+              onCancel={() => setSelectedProductId("")}
+            />
+          )}
         </div>
       )}
     </div>
