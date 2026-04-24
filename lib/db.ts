@@ -30,9 +30,7 @@ interface SerializedDatabaseState {
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "inventory-db.json");
 const isProduction = process.env.NODE_ENV === "production";
-const persistenceMode =
-  process.env.INVENTORY_PERSISTENCE_MODE ||
-  (isProduction ? "memory" : "file");
+const persistenceMode = process.env.INVENTORY_PERSISTENCE_MODE || "file";
 
 /**
  * In-memory cache backed by a JSON file
