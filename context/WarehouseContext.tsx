@@ -57,33 +57,32 @@ const DEFAULT_LOW_STOCK_THRESHOLD: number | null = null;
  * Provides warehouse configuration with localStorage persistence
  */
 export function WarehouseProvider({ children }: { children: ReactNode }) {
-  const [warehouseName, setWarehouseNameState] = useState<string>(() => {
-    if (typeof window === "undefined") return DEFAULT_WAREHOUSE_NAME;
-    const storedWarehouse = localStorage.getItem("warehouse_name")?.trim();
-    return storedWarehouse || DEFAULT_WAREHOUSE_NAME;
-  });
+  const [isMounted, setIsMounted] = useState(false);
+  const [warehouseName, setWarehouseNameState] = useState<string>(DEFAULT_WAREHOUSE_NAME);
+  const [currency, setCurrencyState] = useState<CurrencyCode>(DEFAULT_CURRENCY);
+  const [lowStockThresholdOverride, setLowStockThresholdOverrideState] = useState<number | null>(DEFAULT_LOW_STOCK_THRESHOLD);
 
-  const [currency, setCurrencyState] = useState<CurrencyCode>(() => {
-    if (typeof window === "undefined") return DEFAULT_CURRENCY;
+  React.useEffect(() => {
+    // Read from localStorage safely AFTER initial mount to prevent hydration mismatch
+    const storedWarehouse = localStorage.getItem("warehouse_name")?.trim();
+    if (storedWarehouse) setWarehouseNameState(storedWarehouse);
+
     const storedCurrency = localStorage.getItem("warehouse_currency");
     if (storedCurrency && storedCurrency in CURRENCY_CONFIG) {
-      return storedCurrency as CurrencyCode;
+      setCurrencyState(storedCurrency as CurrencyCode);
     }
-    return DEFAULT_CURRENCY;
-  });
 
-  const [lowStockThresholdOverride, setLowStockThresholdOverrideState] =
-    useState<number | null>(() => {
-      if (typeof window === "undefined") return DEFAULT_LOW_STOCK_THRESHOLD;
-      const storedThreshold = localStorage.getItem("low_stock_threshold");
-
-      if (storedThreshold === "null" || storedThreshold === null) {
-        return null;
-      }
-
+    const storedThreshold = localStorage.getItem("low_stock_threshold");
+    if (storedThreshold === "null" || storedThreshold === null) {
+      setLowStockThresholdOverrideState(null);
+    } else {
       const threshold = parseInt(storedThreshold, 10);
-      return Number.isNaN(threshold) || threshold < 0 ? null : threshold;
-    });
+      if (!Number.isNaN(threshold) && threshold >= 0) {
+        setLowStockThresholdOverrideState(threshold);
+      }
+    }
+    setIsMounted(true);
+  }, []);
 
   /**
    * Update warehouse name and persist to localStorage
